@@ -42,7 +42,7 @@ cat <<EOF > mason.yaml
 bricks:
   flutter_boilerplate:
     git:
-      url: https://github.com/jackw1-tech/Flutter-boilerplate
+      url: https://github.com/jackw1-tech/Flutter-boilerplate-mason
       path: bricks/flutter_boilerplate
 EOF
 
