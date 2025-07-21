@@ -1,43 +1,94 @@
 #!/bin/bash
 
-PROJECT_NAME=$1
+set -e  # termina lo script se un comando fallisce
 
-# 🔍 1. Check if Dart is installed
-if ! command -v dart &> /dev/null; then
-  echo "❌ Dart is not installed. Please install Flutter from https://docs.flutter.dev/get-started/install"
-  exit 1
+# 👉 Project name come primo argomento
+PROJECT_NAME="$1"
+
+# Funzione per leggere input Y/n con Y di default
+ask_install() {
+  local package="$1"
+  read -p "👉 Vuoi installare $package? [Y/n] " choice
+  choice="${choice:-Y}"
+
+  if [[ "$choice" =~ ^[Yy]$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# 📍 Percorso di installazione Flutter
+FLUTTER_DIR="$HOME/flutter"
+FLUTTER_BIN="$FLUTTER_DIR/bin"
+PUB_CACHE_BIN="$HOME/.pub-cache/bin"
+
+# 🔍 1. Controllo e installazione di Flutter (che include anche Dart)
+if ! command -v dart &> /dev/null || ! command -v flutter &> /dev/null; then
+  echo "❌ Dart o Flutter non sono installati."
+
+  if ask_install "Flutter (include Dart)"; then
+    if [ -d "$FLUTTER_DIR" ]; then
+      echo "⚠️ La cartella '$FLUTTER_DIR' esiste già."
+      echo "   Vuoi riutilizzarla invece di fare il clone? [Y/n]"
+      read reuse_choice
+      reuse_choice="${reuse_choice:-Y}"
+
+      if [[ "$reuse_choice" =~ ^[Nn]$ ]]; then
+        echo "🧹 Rimozione vecchia installazione..."
+        rm -rf "$FLUTTER_DIR"
+        echo "⬇️ Clonazione Flutter..."
+        git clone https://github.com/flutter/flutter.git -b stable "$FLUTTER_DIR"
+      else
+        echo "✅ Uso la cartella esistente: $FLUTTER_DIR"
+      fi
+    else
+      echo "⬇️ Clonazione Flutter..."
+      git clone https://github.com/flutter/flutter.git -b stable "$FLUTTER_DIR"
+    fi
+
+    export PATH="$PATH:$FLUTTER_BIN"
+    echo 'export PATH="$PATH:$HOME/flutter/bin"' >> ~/.bashrc  # o ~/.zshrc
+    echo "✅ Flutter installato. Riavvia il terminale o esegui: source ~/.bashrc"
+  else
+    echo "❌ Dart e Flutter sono necessari per continuare."
+    exit 1
+  fi
+else
+  echo "✅ Dart e Flutter sono già installati."
 fi
 
-# 🔍 2. Check if Flutter is installed
-if ! command -v flutter &> /dev/null; then
-  echo "❌ Flutter is not installed. Please install Flutter from https://docs.flutter.dev/get-started/install"
-  exit 1
-fi
+# Assicura che Flutter funzioni
+export PATH="$PATH:$FLUTTER_BIN"
+hash -r  # refresh dei binari
 
-# 🔍 3. Check if Mason is installed
+# 🔍 2. Verifica Mason
 if ! command -v mason &> /dev/null; then
-  echo "⚙️  Mason not found. Installing it now..."
+  echo "⚙️  Mason non trovato. Lo installo..."
   dart pub global activate mason_cli
-
-  # Temporarily add Mason to PATH for this session
-  export PATH="$PATH":"$HOME/.pub-cache/bin"
+  export PATH="$PATH:$PUB_CACHE_BIN"
+  echo 'export PATH="$PATH:$HOME/.pub-cache/bin"' >> ~/.bashrc  # o .zshrc se usi zsh
+  echo "✅ Mason installato."
+else
+  echo "✅ Mason già installato."
 fi
 
-# 🧪 Final check
-echo "✅ All good: Dart, Flutter, and Mason are installed!"
+# 🔁 Refresh comando mason
+hash -r
 
-# 🏗️ Check for project name argument
+# 🏗️ 3. Controllo argomento nome progetto
 if [ -z "$PROJECT_NAME" ]; then
-  echo "⚠️  You must provide a project name:"
-  echo "   ./create_flutter_app.sh my_project_name"
+  echo "⚠️  Devi fornire un nome progetto:"
+  echo "   ./create_flutter_app.sh nome_progetto"
   exit 1
 fi
 
-# 📁 Create the project folder
+# 📁 4. Crea progetto
+echo "📦 Creo progetto $PROJECT_NAME..."
 mkdir "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 
-# 📦 Create mason.yaml
+# 🧱 5. Crea mason.yaml
 cat <<EOF > mason.yaml
 bricks:
   flutter_boilerplate:
@@ -46,9 +97,11 @@ bricks:
       path: bricks/flutter_boilerplate
 EOF
 
-# ⬇️ Download the brick and generate the project
+# 🧱 6. Genera il progetto con mason
 mason get
 mason make flutter_boilerplate -- --project_name="$PROJECT_NAME"
 
+# 📦 7. Flutter pub get
 flutter pub get
 
+echo "✅ Progetto $PROJECT_NAME creato con successo!"
